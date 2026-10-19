@@ -1,0 +1,95 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+-- Variables de Estado
+local AutoJumpRealActivo = false
+local ConexionSalto = nil
+
+-- --- INTERFAZ VISUAL ---
+local ScreenGui = Instance.new("ScreenGui")
+local BotonJump = Instance.new("TextButton")
+local UICorner = Instance.new("UICorner")
+
+ScreenGui.Name = "AutoJumpFijoGui"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+
+BotonJump.Name = "BotonJump"
+BotonJump.Parent = ScreenGui
+BotonJump.BackgroundColor3 = Color3.fromRGB(40, 100, 220) -- Azul (Apagado)
+BotonJump.Position = UDim2.new(0.82, 0, 0.30, 0)
+BotonJump.Size = UDim2.new(0, 130, 0, 45)
+BotonJump.Font = Enum.Font.SourceSansBold
+BotonJump.Text = "Auto-Jump: OFF"
+BotonJump.TextColor3 = Color3.fromRGB(255, 255, 255)
+BotonJump.TextSize = 16.000
+
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = BotonJump
+
+-- --- LÓGICA DE ARRASTRE (DRAG) ---
+local dragging = false
+local dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    BotonJump.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+BotonJump.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = BotonJump.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+BotonJump.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then update(input) end
+end)
+
+-- --- NUEVA LÓGICA DE DETECCIÓN FÍSICA ---
+local function IniciarBucleSalto()
+    -- RenderStepped corre en cada fotograma antes de que se dibuje la pantalla (Garantiza 0 lag)
+    ConexionSalto = RunService.RenderStepped:Connect(function()
+        if AutoJumpRealActivo then
+            local personaje = LocalPlayer.Character
+            local humanoide = personaje and personaje:FindFirstChildOfClass("Humanoid")
+            
+            if humanoide then
+                -- Si FloorMaterial NO es "Air", significa que estás tocando físicamente el suelo u objetos
+                if humanoide.FloorMaterial ~= Enum.Material.Air then
+                    -- Forzamos al motor de Roblox a poner al personaje en estado de salto
+                    humanoide:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end
+    end)
+end
+
+-- --- EVENTO CLICK ---
+BotonJump.MouseButton1Click:Connect(function()
+    AutoJumpRealActivo = not AutoJumpRealActivo
+    
+    if AutoJumpRealActivo then
+        BotonJump.BackgroundColor3 = Color3.fromRGB(40, 220, 100) -- Verde (Encendido)
+        BotonJump.Text = "Auto-Jump: ON"
+        IniciarBucleSalto()
+    else
+        BotonJump.BackgroundColor3 = Color3.fromRGB(40, 100, 220) -- Azul (Apagado)
+        BotonJump.Text = "Auto-Jump: OFF"
+        if ConexionSalto then
+            ConexionSalto:Disconnect()
+            ConexionSalto = nil
+        end
+    end
+end)
